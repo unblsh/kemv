@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Operational Dashboard - Online Retail{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2>Operational Dashboard</h2>
+        <p class="text-muted">Real-time Operations & KPIs</p>
+    </div>
+</div>
+
+<!-- Daily Metrics Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title">Today's Orders</h5>
+                <h2 class="display-4">{{ daily_metrics.order_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title">Today's Sales</h5>
+                <h2 class="display-4">${{ "%.2f"|format(daily_metrics.total_sales) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5 class="card-title">Average Order Value</h5>
+                <h2 class="display-4">${{ "%.2f"|format(daily_metrics.average_order_value) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Status Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Order Status Distribution</h5>
+                <canvas id="orderStatusChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Orders</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Customer</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>{{ order.order_id }}</td>
+                                <td>{{ order.first_name }} {{ order.last_name }}</td>
+                                <td>{{ order.order_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if order.status == 'completed' else 'warning' if order.status == 'pending' else 'danger' }}">
+                                        {{ order.status }}
+                                    </span>
+                                </td>
+                                <td>${{ "%.2f"|format(order.total_amount) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Low Stock Alert</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Current Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory_status %}
+                            <tr>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.category }}</td>
+                                <td>{{ item.stock_quantity }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if item.stock_quantity < 5 else 'warning' }}">
+                                        {{ 'Critical' if item.stock_quantity < 5 else 'Low' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard2.js') }}"></script>
+<script>
+    // Get initial data from data attributes
+    const dashboardElement = document.getElementById('dashboard-data');
+    const initialData = {
+        statusDistribution: JSON.parse(dashboardElement.dataset.statusDistribution),
+        dailyMetrics: {
+            orderCount: parseInt(dashboardElement.dataset.orderCount) || 0,
+            totalSales: parseFloat(dashboardElement.dataset.totalSales) || 0,
+            averageOrderValue: parseFloat(dashboardElement.dataset.averageOrderValue) || 0
+        }
+    };
+
+    // Initialize Order Status Chart
+    window.orderStatusChart = new Chart(document.getElementById('orderStatusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: initialData.statusDistribution.map(item => item.status),
+            datasets: [{
+                data: initialData.statusDistribution.map(item => item.count),
+                backgroundColor: [
+                    'rgba(40, 167, 69, 0.5)',  // completed
+                    'rgba(255, 193, 7, 0.5)',   // pending
+                    'rgba(220, 53, 69, 0.5)'    // cancelled
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Order Status Distribution'
+                },
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Initialize metrics display
+    document.querySelector('.card.bg-primary .display-4').textContent = initialData.dailyMetrics.orderCount;
+    document.querySelector('.card.bg-success .display-4').textContent = '$' + initialData.dailyMetrics.totalSales.toFixed(2);
+    document.querySelector('.card.bg-info .display-4').textContent = '$' + initialData.dailyMetrics.averageOrderValue.toFixed(2);
+
+    // Auto-refresh dashboard data every 5 minutes
+    setInterval(function() {
+        fetch('/api/operational-metrics')
+            .then(response => response.json())
+            .then(data => {
+                // Update metrics
+                document.querySelector('.card.bg-primary .display-4').textContent = data.order_count;
+                document.querySelector('.card.bg-success .display-4').textContent = '$' + data.total_sales.toFixed(2);
+                document.querySelector('.card.bg-info .display-4').textContent = '$' + data.average_order_value.toFixed(2);
+                
+                // Update order status chart
+                if (window.orderStatusChart) {
+                    window.orderStatusChart.data.datasets[0].data = data.status_distribution.map(item => item.count);
+                    window.orderStatusChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating operational metrics:', error));
+    }, 300000); // 5 minutes
+</script>
+
+<!-- Hidden element to store initial data -->
+<div id="dashboard-data" 
+     data-status-distribution='{{ status_distribution|tojson|safe }}'
+     data-order-count="{{ daily_metrics.order_count|default(0) }}"
+     data-total-sales="{{ daily_metrics.total_sales|default(0)|float }}"
+     data-average-order-value="{{ daily_metrics.average_order_value|default(0)|float }}"
+     style="display: none;">
+</div>
+{% endblock %} 

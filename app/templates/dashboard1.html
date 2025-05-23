@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Analytical Dashboard - Online Retail{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2>Analytical Dashboard</h2>
+        <p class="text-muted">Business Intelligence & Analytics</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Date Range</h5>
+                <input type="text" id="dateRange" class="form-control" placeholder="Select date range">
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Category Filter</h5>
+                <select id="categoryFilter" class="form-select">
+                    <option value="">All Categories</option>
+                    {% for category in category_distribution %}
+                    <option value="{{ category.name }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Trend Chart -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Sales Trend Over Time</h5>
+                <canvas id="salesTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Products and Category Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Top Selling Products</h5>
+                <canvas id="topProductsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Category Distribution</h5>
+                <canvas id="categoryDistributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Segments -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Customer Segments</h5>
+                <div class="row">
+                    <div class="col-md-8">
+                        <canvas id="customerSegmentsChart"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Segment</th>
+                                        <th>Customers</th>
+                                        <th>Orders</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for segment in customer_segments %}
+                                    <tr>
+                                        <td>{{ segment.segment }}</td>
+                                        <td>{{ segment.customer_count }}</td>
+                                        <td>{{ segment.order_count }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard1.js') }}"></script>
+<script>
+    // Initialize date range picker
+    flatpickr("#dateRange", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        defaultDate: [new Date().setDate(new Date().getDate() - 30), new Date()],
+        onChange: function(selectedDates) {
+            updateDashboard(selectedDates[0], selectedDates[1]);
+        }
+    });
+
+    // Store initial data in a global object
+    window.dashboardData = {
+        salesTrend: JSON.parse('{{ sales_trend|tojson|safe }}'),
+        topProducts: JSON.parse('{{ top_products|tojson|safe }}'),
+        categoryDistribution: JSON.parse('{{ category_distribution|tojson|safe }}'),
+        customerSegments: JSON.parse('{{ customer_segments|tojson|safe }}')
+    };
+
+    // Sales Trend Chart
+    window.salesTrendChart = new Chart(document.getElementById('salesTrendChart'), {
+        type: 'line',
+        data: {
+            labels: window.dashboardData.salesTrend.map(item => item.date),
+            datasets: [{
+                label: 'Daily Sales',
+                data: window.dashboardData.salesTrend.map(item => item.total_sales),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Sales Trend Over Time'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Top Products Chart
+    window.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
+        type: 'bar',
+        data: {
+            labels: window.dashboardData.topProducts.map(item => item.name),
+            datasets: [{
+                label: 'Units Sold',
+                data: window.dashboardData.topProducts.map(item => item.total_quantity),
+                backgroundColor: 'rgba(54, 162, 235, 0.5)'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Top Selling Products'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Category Distribution Chart
+    window.categoryDistributionChart = new Chart(document.getElementById('categoryDistributionChart'), {
+        type: 'pie',
+        data: {
+            labels: window.dashboardData.categoryDistribution.map(item => item.name),
+            datasets: [{
+                data: window.dashboardData.categoryDistribution.map(item => item.product_count),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.5)',
+                    'rgba(54, 162, 235, 0.5)',
+                    'rgba(255, 206, 86, 0.5)',
+                    'rgba(75, 192, 192, 0.5)',
+                    'rgba(153, 102, 255, 0.5)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Product Distribution by Category'
+                }
+            }
+        }
+    });
+
+    // Customer Segments Chart
+    window.customerSegmentsChart = new Chart(document.getElementById('customerSegmentsChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['New', 'Regular', 'VIP'],
+            datasets: [{
+                data: window.dashboardData.customerSegments.map(item => item.customer_count),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.5)',
+                    'rgba(54, 162, 235, 0.5)',
+                    'rgba(255, 206, 86, 0.5)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Customer Segments Distribution'
+                }
+            }
+        }
+    });
+</script>
+{% endblock %} 
