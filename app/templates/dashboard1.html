@@ -6,28 +6,33 @@
 <div class="row mb-4">
     <div class="col-12">
         <h2>Analytical Dashboard</h2>
-        <p class="text-muted">Business Intelligence & Analytics</p>
+        <p class="text-muted">Sales Analytics & Insights</p>
     </div>
 </div>
 
 <!-- Filters -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Date Range</h5>
-                <input type="text" id="dateRange" class="form-control" placeholder="Select date range">
+                <div class="input-group">
+                    <input type="date" class="form-control" id="startDate" value="{{ start_date }}">
+                    <span class="input-group-text">to</span>
+                    <input type="date" class="form-control" id="endDate" value="{{ end_date }}">
+                    <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Category Filter</h5>
-                <select id="categoryFilter" class="form-select">
+                <select class="form-select" id="categoryFilter" onchange="applyFilters()">
                     <option value="">All Categories</option>
-                    {% for category in category_distribution %}
-                    <option value="{{ category.name }}">{{ category.name }}</option>
+                    {% for category in categories %}
+                    <option value="{{ category.category_id }}">{{ category.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -35,21 +40,17 @@
     </div>
 </div>
 
-<!-- Sales Trend Chart -->
+<!-- Charts Row 1 -->
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Sales Trend Over Time</h5>
+                <h5 class="card-title">Sales Trend</h5>
                 <canvas id="salesTrendChart"></canvas>
             </div>
         </div>
     </div>
-</div>
-
-<!-- Top Products and Category Distribution -->
-<div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Top Selling Products</h5>
@@ -57,6 +58,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row mb-4">
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
@@ -65,41 +70,11 @@
             </div>
         </div>
     </div>
-</div>
-
-<!-- Customer Segments -->
-<div class="row mb-4">
-    <div class="col-12">
+    <div class="col-md-6">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Customer Segments</h5>
-                <div class="row">
-                    <div class="col-md-8">
-                        <canvas id="customerSegmentsChart"></canvas>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Segment</th>
-                                        <th>Customers</th>
-                                        <th>Orders</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for segment in customer_segments %}
-                                    <tr>
-                                        <td>{{ segment.segment }}</td>
-                                        <td>{{ segment.customer_count }}</td>
-                                        <td>{{ segment.order_count }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+                <canvas id="customerSegmentsChart"></canvas>
             </div>
         </div>
     </div>
@@ -109,32 +84,23 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard1.js') }}"></script>
 <script>
-    // Initialize date range picker
-    flatpickr("#dateRange", {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        defaultDate: [new Date().setDate(new Date().getDate() - 30), new Date()],
-        onChange: function(selectedDates) {
-            updateDashboard(selectedDates[0], selectedDates[1]);
-        }
-    });
-
-    // Store initial data in a global object
-    window.dashboardData = {
-        salesTrend: JSON.parse('{{ sales_trend|tojson|safe }}'),
-        topProducts: JSON.parse('{{ top_products|tojson|safe }}'),
-        categoryDistribution: JSON.parse('{{ category_distribution|tojson|safe }}'),
-        customerSegments: JSON.parse('{{ customer_segments|tojson|safe }}')
+    // Get initial data from data attributes
+    const dashboardElement = document.getElementById('dashboard-data');
+    const initialData = {
+        salesTrend: JSON.parse(dashboardElement.dataset.salesTrend),
+        topProducts: JSON.parse(dashboardElement.dataset.topProducts),
+        categoryDistribution: JSON.parse(dashboardElement.dataset.categoryDistribution),
+        customerSegments: JSON.parse(dashboardElement.dataset.customerSegments)
     };
 
-    // Sales Trend Chart
+    // Initialize Sales Trend Chart
     window.salesTrendChart = new Chart(document.getElementById('salesTrendChart'), {
         type: 'line',
         data: {
-            labels: window.dashboardData.salesTrend.map(item => item.date),
+            labels: initialData.salesTrend.map(item => item.date),
             datasets: [{
                 label: 'Daily Sales',
-                data: window.dashboardData.salesTrend.map(item => item.total_sales),
+                data: initialData.salesTrend.map(item => item.total_sales),
                 borderColor: 'rgb(75, 192, 192)',
                 tension: 0.1
             }]
@@ -144,25 +110,30 @@
             plugins: {
                 title: {
                     display: true,
-                    text: 'Sales Trend Over Time'
+                    text: 'Daily Sales Trend'
                 }
             },
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(2);
+                        }
+                    }
                 }
             }
         }
     });
 
-    // Top Products Chart
+    // Initialize Top Products Chart
     window.topProductsChart = new Chart(document.getElementById('topProductsChart'), {
         type: 'bar',
         data: {
-            labels: window.dashboardData.topProducts.map(item => item.name),
+            labels: initialData.topProducts.map(item => item.product_name),
             datasets: [{
                 label: 'Units Sold',
-                data: window.dashboardData.topProducts.map(item => item.total_quantity),
+                data: initialData.topProducts.map(item => item.quantity),
                 backgroundColor: 'rgba(54, 162, 235, 0.5)'
             }]
         },
@@ -182,13 +153,13 @@
         }
     });
 
-    // Category Distribution Chart
+    // Initialize Category Distribution Chart
     window.categoryDistributionChart = new Chart(document.getElementById('categoryDistributionChart'), {
         type: 'pie',
         data: {
-            labels: window.dashboardData.categoryDistribution.map(item => item.name),
+            labels: initialData.categoryDistribution.map(item => item.category_name),
             datasets: [{
-                data: window.dashboardData.categoryDistribution.map(item => item.product_count),
+                data: initialData.categoryDistribution.map(item => item.total_sales),
                 backgroundColor: [
                     'rgba(255, 99, 132, 0.5)',
                     'rgba(54, 162, 235, 0.5)',
@@ -203,19 +174,22 @@
             plugins: {
                 title: {
                     display: true,
-                    text: 'Product Distribution by Category'
+                    text: 'Sales by Category'
+                },
+                legend: {
+                    position: 'bottom'
                 }
             }
         }
     });
 
-    // Customer Segments Chart
+    // Initialize Customer Segments Chart
     window.customerSegmentsChart = new Chart(document.getElementById('customerSegmentsChart'), {
         type: 'doughnut',
         data: {
-            labels: ['New', 'Regular', 'VIP'],
+            labels: initialData.customerSegments.map(item => item.segment),
             datasets: [{
-                data: window.dashboardData.customerSegments.map(item => item.customer_count),
+                data: initialData.customerSegments.map(item => item.count),
                 backgroundColor: [
                     'rgba(255, 99, 132, 0.5)',
                     'rgba(54, 162, 235, 0.5)',
@@ -228,10 +202,77 @@
             plugins: {
                 title: {
                     display: true,
-                    text: 'Customer Segments Distribution'
+                    text: 'Customer Segments'
+                },
+                legend: {
+                    position: 'bottom'
                 }
             }
         }
     });
+
+    // Function to apply filters and update charts
+    function applyFilters() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const categoryId = document.getElementById('categoryFilter').value;
+
+        // Update sales trend
+        fetch(`/api/sales-trend?start_date=${startDate}&end_date=${endDate}&category_id=${categoryId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (window.salesTrendChart) {
+                    window.salesTrendChart.data.labels = data.map(item => item.date);
+                    window.salesTrendChart.data.datasets[0].data = data.map(item => item.total_sales);
+                    window.salesTrendChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating sales trend:', error));
+
+        // Update top products
+        fetch(`/api/top-products?start_date=${startDate}&end_date=${endDate}&category_id=${categoryId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (window.topProductsChart) {
+                    window.topProductsChart.data.labels = data.map(item => item.product_name);
+                    window.topProductsChart.data.datasets[0].data = data.map(item => item.quantity);
+                    window.topProductsChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating top products:', error));
+
+        // Update category distribution
+        fetch(`/api/category-distribution?start_date=${startDate}&end_date=${endDate}`)
+            .then(response => response.json())
+            .then(data => {
+                if (window.categoryDistributionChart) {
+                    window.categoryDistributionChart.data.labels = data.map(item => item.category_name);
+                    window.categoryDistributionChart.data.datasets[0].data = data.map(item => item.total_sales);
+                    window.categoryDistributionChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating category distribution:', error));
+
+        // Update customer segments
+        fetch(`/api/customer-segments?start_date=${startDate}&end_date=${endDate}`)
+            .then(response => response.json())
+            .then(data => {
+                if (window.customerSegmentsChart) {
+                    window.customerSegmentsChart.data.labels = data.map(item => item.segment);
+                    window.customerSegmentsChart.data.datasets[0].data = data.map(item => item.count);
+                    window.customerSegmentsChart.update();
+                }
+            })
+            .catch(error => console.error('Error updating customer segments:', error));
+    }
 </script>
+
+<!-- Hidden element to store initial data -->
+<div id="dashboard-data" 
+     data-sales-trend='{{ sales_trend|tojson|safe }}'
+     data-top-products='{{ top_products|tojson|safe }}'
+     data-category-distribution='{{ category_distribution|tojson|safe }}'
+     data-customer-segments='{{ customer_segments|tojson|safe }}'
+     style="display: none;">
+</div>
 {% endblock %} 

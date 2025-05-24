@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, jsonify, request
 from sqlalchemy import func, desc
 from datetime import datetime, timedelta
 from app import db
-from app.models import Order, OrderItem, Product, Category, Customer
+from app.models import Invoice, InvoiceItem, Product, Category, Customer
 
 main = Blueprint('main', __name__)
 
@@ -19,19 +19,19 @@ def analytical_dashboard():
     
     # Get sales trends over time
     sales_trend = db.session.query(
-        func.date(Order.order_date).label('date'),
-        func.sum(Order.total_amount).label('total_sales')
+        func.date(Invoice.invoice_date).label('date'),
+        func.sum(Invoice.total_amount).label('total_sales')
     ).filter(
-        Order.order_date.between(start_date, end_date)
+        Invoice.invoice_date.between(start_date, end_date)
     ).group_by(
-        func.date(Order.order_date)
+        func.date(Invoice.invoice_date)
     ).order_by('date').all()
     
     # Get top selling products
     top_products = db.session.query(
         Product.name,
-        func.sum(OrderItem.quantity).label('total_quantity')
-    ).join(OrderItem).group_by(Product.product_id).order_by(
+        func.sum(InvoiceItem.quantity).label('total_quantity')
+    ).join(InvoiceItem).group_by(Product.product_id).order_by(
         desc('total_quantity')
     ).limit(10).all()
     
@@ -41,17 +41,16 @@ def analytical_dashboard():
         func.count(Product.product_id).label('product_count')
     ).join(Product).group_by(Category.category_id).all()
     
-    # Get customer segments
+    # Get customer segments based on invoice count
     customer_segments = db.session.query(
-        func.count(Customer.customer_id).label('customer_count'),
-        func.count(Order.order_id).label('order_count')
-    ).outerjoin(Order).group_by(
         func.case(
-            (func.count(Order.order_id) == 0, 'New'),
-            (func.count(Order.order_id) <= 3, 'Regular'),
+            (func.count(Invoice.invoice_no) == 0, 'New'),
+            (func.count(Invoice.invoice_no) <= 3, 'Regular'),
             else_='VIP'
-        )
-    ).all()
+        ).label('segment'),
+        func.count(Customer.customer_id).label('customer_count'),
+        func.count(Invoice.invoice_no).label('invoice_count')
+    ).outerjoin(Invoice).group_by('segment').all()
     
     return render_template('dashboard1.html',
                          sales_trend=sales_trend,
@@ -62,46 +61,31 @@ def analytical_dashboard():
 @main.route('/dashboard2')
 def operational_dashboard():
     """Operational Dashboard for operations team and executives"""
-    # Get current inventory status
-    inventory_status = db.session.query(
-        Product.name,
-        Product.stock_quantity,
-        Category.name.label('category')
-    ).join(Category).filter(
-        Product.stock_quantity < 10  # Low stock threshold
-    ).all()
-    
-    # Get recent orders
-    recent_orders = db.session.query(
-        Order.order_id,
-        Order.order_date,
-        Order.status,
-        Order.total_amount,
-        Customer.first_name,
-        Customer.last_name
+    # Get recent invoices
+    recent_invoices = db.session.query(
+        Invoice.invoice_no,
+        Invoice.invoice_date,
+        Invoice.total_amount,
+        Customer.name.label('customer_name')
     ).join(Customer).order_by(
-        Order.order_date.desc()
+        Invoice.invoice_date.desc()
     ).limit(10).all()
     
     # Get daily sales metrics
     today = datetime.now().date()
     daily_metrics = db.session.query(
-        func.count(Order.order_id).label('order_count'),
-        func.sum(Order.total_amount).label('total_sales'),
-        func.avg(Order.total_amount).label('average_order_value')
+        func.count(Invoice.invoice_no).label('order_count'),
+        func.sum(Invoice.total_amount).label('total_sales'),
+        func.avg(Invoice.total_amount).label('average_order_value')
     ).filter(
-        func.date(Order.order_date) == today
+        func.date(Invoice.invoice_date) == today
     ).first()
     
-    # Get order status distribution
-    status_distribution = db.session.query(
-        Order.status,
-        func.count(Order.order_id).label('count')
-    ).group_by(Order.status).all()
+    # Get invoice status distribution (all completed in this case)
+    status_distribution = [{'status': 'completed', 'count': len(recent_invoices)}]
     
     return render_template('dashboard2.html',
-                         inventory_status=inventory_status,
-                         recent_orders=recent_orders,
+                         recent_orders=recent_invoices,
                          daily_metrics=daily_metrics,
                          status_distribution=status_distribution)
 
@@ -113,12 +97,12 @@ def get_sales_trend():
     start_date = end_date - timedelta(days=days)
     
     sales_trend = db.session.query(
-        func.date(Order.order_date).label('date'),
-        func.sum(Order.total_amount).label('total_sales')
+        func.date(Invoice.invoice_date).label('date'),
+        func.sum(Invoice.total_amount).label('total_sales')
     ).filter(
-        Order.order_date.between(start_date, end_date)
+        Invoice.invoice_date.between(start_date, end_date)
     ).group_by(
-        func.date(Order.order_date)
+        func.date(Invoice.invoice_date)
     ).order_by('date').all()
     
     return jsonify([{
@@ -126,20 +110,25 @@ def get_sales_trend():
         'total_sales': float(record.total_sales)
     } for record in sales_trend])
 
-@main.route('/api/inventory-status')
-def get_inventory_status():
-    threshold = int(request.args.get('threshold', 10))
+@main.route('/api/operational-metrics')
+def get_operational_metrics():
+    today = datetime.now().date()
     
-    inventory_status = db.session.query(
-        Product.name,
-        Product.stock_quantity,
-        Category.name.label('category')
-    ).join(Category).filter(
-        Product.stock_quantity < threshold
-    ).all()
+    # Get daily metrics
+    daily_metrics = db.session.query(
+        func.count(Invoice.invoice_no).label('order_count'),
+        func.sum(Invoice.total_amount).label('total_sales'),
+        func.avg(Invoice.total_amount).label('average_order_value')
+    ).filter(
+        func.date(Invoice.invoice_date) == today
+    ).first()
     
-    return jsonify([{
-        'name': record.name,
-        'stock_quantity': record.stock_quantity,
-        'category': record.category
-    } for record in inventory_status]) 
+    # Get invoice status distribution (all completed in this case)
+    status_distribution = [{'status': 'completed', 'count': daily_metrics.order_count or 0}]
+    
+    return jsonify({
+        'order_count': daily_metrics.order_count or 0,
+        'total_sales': float(daily_metrics.total_sales or 0),
+        'average_order_value': float(daily_metrics.average_order_value or 0),
+        'status_distribution': status_distribution
+    }) 

@@ -2,59 +2,57 @@ from datetime import datetime
 from app import db
 
 class Customer(db.Model):
-    __tablename__ = 'customers'
+    __tablename__ = 'Customer'
     
-    customer_id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(50), nullable=False)
-    last_name = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    phone = db.Column(db.String(20))
-    address = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    customer_id = db.Column('CustomerID', db.Integer, primary_key=True)
+    name = db.Column('CustomerName', db.String(255))
+    country_code = db.Column('CountryCode', db.String(10))
     
     # Relationships
-    orders = db.relationship('Order', backref='customer', lazy=True)
+    invoices = db.relationship('Invoice', backref='customer', lazy=True)
 
 class Product(db.Model):
-    __tablename__ = 'products'
+    __tablename__ = 'Product'
     
-    product_id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    price = db.Column(db.Float, nullable=False)
-    stock_quantity = db.Column(db.Integer, default=0)
-    category_id = db.Column(db.Integer, db.ForeignKey('categories.category_id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    product_id = db.Column('ProductID', db.Integer, primary_key=True)
+    name = db.Column('ProductName', db.String(100), nullable=False)
+    price = db.Column('UnitPrice', db.Float, nullable=False)
     
     # Relationships
-    category = db.relationship('Category', backref='products')
-    order_items = db.relationship('OrderItem', backref='product', lazy=True)
+    invoice_items = db.relationship('InvoiceItem', backref='product', lazy=True)
 
 class Category(db.Model):
-    __tablename__ = 'categories'
+    __tablename__ = 'Category'
     
-    category_id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text)
+    category_id = db.Column('CategoryID', db.Integer, primary_key=True)
+    name = db.Column('CategoryName', db.String(255), nullable=False)
 
-class Order(db.Model):
-    __tablename__ = 'orders'
+class Invoice(db.Model):
+    __tablename__ = 'Invoice'
     
-    order_id = db.Column(db.Integer, primary_key=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey('customers.customer_id'), nullable=False)
-    order_date = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='pending')  # pending, completed, cancelled
-    total_amount = db.Column(db.Float, nullable=False)
+    invoice_no = db.Column('InvoiceNo', db.String(20), primary_key=True)
+    invoice_date = db.Column('InvoiceDate', db.DateTime, nullable=False)
+    customer_id = db.Column('CustomerID', db.Integer, db.ForeignKey('Customer.CustomerID'))
     
     # Relationships
-    items = db.relationship('OrderItem', backref='order', lazy=True)
-
-class OrderItem(db.Model):
-    __tablename__ = 'order_items'
+    items = db.relationship('InvoiceItem', backref='invoice', lazy=True)
     
-    order_item_id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
-    product_id = db.Column(db.Integer, db.ForeignKey('products.product_id'), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
-    unit_price = db.Column(db.Float, nullable=False)
-    subtotal = db.Column(db.Float, nullable=False) 
+    @property
+    def total_amount(self):
+        return sum(item.quantity * item.unit_price for item in self.items)
+
+class InvoiceItem(db.Model):
+    __tablename__ = 'Invoice_Item'
+    
+    invoice_item_id = db.Column('InvoiceItemID', db.Integer, primary_key=True, autoincrement=True)
+    invoice_no = db.Column('InvoiceNo', db.String(20), db.ForeignKey('Invoice.InvoiceNo'))
+    product_id = db.Column('ProductID', db.Integer, db.ForeignKey('Product.ProductID'))
+    quantity = db.Column('Quantity', db.Integer, nullable=False)
+    
+    @property
+    def unit_price(self):
+        return self.product.price if self.product else 0
+    
+    @property
+    def subtotal(self):
+        return self.quantity * self.unit_price 
