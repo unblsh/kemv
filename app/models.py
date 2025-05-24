@@ -5,7 +5,7 @@ class Customer(db.Model):
     __tablename__ = 'Customer'
     
     customer_id = db.Column('CustomerID', db.Integer, primary_key=True)
-    name = db.Column('CustomerName', db.String(255))
+    name = db.Column('Name', db.String(100))
     country_code = db.Column('CountryCode', db.String(10))
     
     # Relationships
@@ -17,9 +17,11 @@ class Product(db.Model):
     product_id = db.Column('ProductID', db.Integer, primary_key=True)
     name = db.Column('ProductName', db.String(100), nullable=False)
     price = db.Column('UnitPrice', db.Float, nullable=False)
+    category_id = db.Column('CategoryID', db.Integer, db.ForeignKey('Category.CategoryID'))
     
     # Relationships
     invoice_items = db.relationship('InvoiceItem', backref='product', lazy=True)
+    category = db.relationship('Category', backref='products', lazy=True)
 
 class Category(db.Model):
     __tablename__ = 'Category'
