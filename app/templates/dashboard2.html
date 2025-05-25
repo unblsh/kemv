@@ -10,12 +10,6 @@
     </div>
 </div>
 
-{% if no_data %}
-<div class="alert alert-info" role="alert">
-    <h4 class="alert-heading">No Data Available</h4>
-    <p>There are no invoices in the database for the selected date. Please try a different date or check back later.</p>
-</div>
-{% else %}
 <!-- Filters -->
 <div class="row mb-4">
     <div class="col-md-6">
@@ -23,14 +17,19 @@
             <div class="card-body">
                 <h5 class="card-title">Date Filter</h5>
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="radio" name="dateMode" id="todayRadio" value="today" {% if date_mode == 'today' %}checked{% endif %}>
-                    <label class="form-check-label" for="todayRadio">Today</label>
+                    <input class="form-check-input" type="radio" name="dateMode" id="todayRadio" value="today" {% if date_mode == 'today' %}checked{% endif %} {% if not today_is_available %}disabled{% endif %}>
+                    <label class="form-check-label" for="todayRadio">Latest Available Date</label>
                 </div>
                 <div class="form-check form-check-inline">
                     <input class="form-check-input" type="radio" name="dateMode" id="customRadio" value="custom" {% if date_mode == 'custom' %}checked{% endif %}>
                     <label class="form-check-label" for="customRadio">Custom Date</label>
                 </div>
-                <input type="date" class="form-control mt-2" id="customDate" value="{{ current_date }}" {% if date_mode == 'today' %}disabled{% endif %}>
+                <input type="date" class="form-control mt-2" id="customDate" 
+                       min="{{ available_dates|first }}" 
+                       max="{{ available_dates|last }}"
+                       value="{{ current_date }}"
+                       {% if date_mode == 'today' %}disabled{% endif %}>
+                <small class="form-text text-muted">Available dates: {{ available_dates|first }} to {{ available_dates|last }}</small>
             </div>
         </div>
     </div>
@@ -49,47 +48,48 @@
     </div>
 </div>
 
+{% if no_data %}
+<div class="alert alert-info" role="alert">
+    <h4 class="alert-heading">No Data Available</h4>
+    <p>{{ no_data_message }}</p>
+</div>
+{% else %}
 <div class="row mb-4">
     <div class="col-md-4">
         <div class="card bg-primary text-white">
             <div class="card-body">
-                <h5 class="card-title">Today's Invoices</h5>
+                <h5 class="card-title">Invoices for {{ current_date }}</h5>
                 <h2 class="display-4" id="orderCount">{{ daily_metrics.order_count }}</h2>
-                <p class="card-text text-white-50">As of {{ current_date }}</p>
+                <p class="card-text text-white-50">Total invoices for selected date</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card bg-success text-white">
             <div class="card-body">
-                <h5 class="card-title">Today's Sales</h5>
+                <h5 class="card-title">Sales for {{ current_date }}</h5>
                 <h2 class="display-4" id="totalSales">${{ '%.2f'|format(daily_metrics.total_sales) }}</h2>
-                <p class="card-text text-white-50">Total revenue for today</p>
+                <p class="card-text text-white-50">Total revenue for selected date</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card bg-info text-white">
             <div class="card-body">
-                <h5 class="card-title">Average Invoice Value</h5>
-                <h2 class="display-4" id="avgOrderValue">${{ '%.2f'|format(daily_metrics.average_order_value) }}</h2>
-                <p class="card-text text-white-50">Per invoice average</p>
+                <h5 class="card-title">Average Order Value</h5>
+                <h2 class="display-4" id="averageOrderValue">${{ '%.2f'|format(daily_metrics.average_order_value) }}</h2>
+                <p class="card-text text-white-50">Average revenue per invoice</p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Charts and Table -->
 <div class="row mb-4">
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Invoice Distribution by Country</h5>
-                {% if status_distribution %}
-                <canvas id="orderStatusChart"></canvas>
-                {% else %}
-                <div class="alert alert-info">No invoice distribution data available for the selected date.</div>
-                {% endif %}
+                <h5 class="card-title">Sales by Country</h5>
+                <canvas id="statusDistributionChart"></canvas>
             </div>
         </div>
     </div>
@@ -97,34 +97,66 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Recent Invoices</h5>
-                {% if recent_orders %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Invoice No</th>
-                                <th>Customer</th>
-                                <th>Country</th>
                                 <th>Date</th>
+                                <th>Country</th>
                                 <th>Amount</th>
                             </tr>
                         </thead>
-                        <tbody id="recentInvoicesTableBody">
-                            {% for invoice in recent_orders %}
+                        <tbody id="recentInvoicesTable">
+                            {% for invoice in recent_invoices %}
                             <tr>
                                 <td>{{ invoice.invoice_no }}</td>
-                                <td>{{ invoice.customer_name }}</td>
-                                <td>{{ invoice.country }}</td>
                                 <td>{{ invoice.invoice_date }}</td>
+                                <td>{{ invoice.country }}</td>
                                 <td>${{ '%.2f'|format(invoice.total_amount) }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <div class="alert alert-info">No recent invoices available for the selected date.</div>
-                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Stock Alerts</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Current Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stockAlertsTable">
+                            {% for alert in stock_alerts %}
+                            <tr>
+                                <td>{{ alert.product_name }}</td>
+                                <td>{{ alert.quantity_in_stock }}</td>
+                                <td>
+                                    {% if alert.quantity_in_stock <= 10 %}
+                                    <span class="badge bg-danger">Low Stock</span>
+                                    {% elif alert.quantity_in_stock <= 20 %}
+                                    <span class="badge bg-warning">Medium Stock</span>
+                                    {% else %}
+                                    <span class="badge bg-success">In Stock</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -133,18 +165,35 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="{{ url_for('static', filename='js/dashboard2.js') }}"></script>
-{% autoescape false %}
 <script type="text/javascript">
+// Initialize dashboard data
 window.dashboard2Initial = {
     daily_metrics: {{ daily_metrics|tojson }},
     status_distribution: {{ status_distribution|tojson }},
-    recent_orders: {{ recent_orders|tojson }},
+    recent_invoices: {{ recent_invoices|tojson }},
+    stock_alerts: {{ stock_alerts|tojson }},
+    current_date: {{ current_date|tojson }},
     countries: {{ countries|tojson }},
     selected_country: {{ selected_country|tojson }},
-    current_date: {{ current_date|tojson }},
-    date_mode: {{ date_mode|tojson }}
+    date_mode: {{ date_mode|tojson }},
+    available_dates: {{ available_dates|tojson }}
 };
+
+// Initialize date picker when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    flatpickr("#customDate", {
+        dateFormat: "Y-m-d",
+        minDate: window.dashboard2Initial.available_dates[0],
+        maxDate: window.dashboard2Initial.available_dates[window.dashboard2Initial.available_dates.length - 1],
+        defaultDate: window.dashboard2Initial.current_date,
+        onChange: function(selectedDates, dateStr) {
+            document.getElementById('customRadio').checked = true;
+            const filters = getFilters();
+            fetchDashboardData(filters).then(updateDashboard);
+        }
+    });
+});
 </script>
-{% endautoescape %}
 {% endblock %} 

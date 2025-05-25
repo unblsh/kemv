@@ -40,10 +40,26 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
+                <h5 class="card-title">Country Filter</h5>
+                <select class="form-select" id="countryFilter">
+                    <option value="">All Countries</option>
+                    {% for country in countries %}
+                    <option value="{{ country }}" {% if country == selected_country %}selected{% endif %}>{{ country }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
                 <h5 class="card-title">Search</h5>
                 <div class="input-group">
-                    <input type="text" class="form-control" id="searchInput" placeholder="Customer or Product" value="{{ search }}">
-                    <button class="btn btn-primary" id="applyFilters">Apply</button>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Search by product description or stock code..." value="{{ search }}">
+                    <button class="btn btn-primary" type="button" id="searchButton">Search</button>
                 </div>
             </div>
         </div>
@@ -52,11 +68,11 @@
 
 <!-- Sales Trend -->
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-md-12">
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Sales Trend</h5>
-                <canvas id="salesTrendChart" height="100"></canvas>
+                <canvas id="salesTrendChart"></canvas>
             </div>
         </div>
     </div>
@@ -67,16 +83,16 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Top 10 Selling Products</h5>
-                <canvas id="topProductsChart" height="300"></canvas>
+                <h5 class="card-title">Top Products</h5>
+                <canvas id="topProductsChart"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Revenue by Category</h5>
-                <canvas id="categoryDistributionChart" height="300"></canvas>
+                <h5 class="card-title">Category Distribution</h5>
+                <canvas id="categoryDistributionChart"></canvas>
             </div>
         </div>
     </div>
@@ -87,16 +103,16 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Revenue by Country</h5>
-                <canvas id="revenueByCountryChart" height="300"></canvas>
+                <h5 class="card-title">Customer Distribution by Country</h5>
+                <canvas id="customerSegmentsChart"></canvas>
             </div>
         </div>
     </div>
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Customer Segments</h5>
-                <canvas id="customerSegmentsChart" height="300"></canvas>
+                <h5 class="card-title">Revenue by Country</h5>
+                <canvas id="revenueByCountryChart"></canvas>
             </div>
         </div>
     </div>
@@ -163,7 +179,9 @@ window.dashboard1Initial = {
     start_date: {{ start_date|tojson }},
     end_date: {{ end_date|tojson }},
     categories: {{ categories|tojson }},
+    countries: {{ countries|tojson }},
     selected_category: {{ selected_category|tojson }},
+    selected_country: {{ selected_country|tojson }},
     search: {{ search|tojson }},
     sales_dates: {{ sales_dates|tojson }}
 };

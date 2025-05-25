@@ -50,8 +50,8 @@ function updateCharts(data) {
     categoryDistributionChart.data.datasets[0].data = data.category_distribution.map(item => item.sales);
     categoryDistributionChart.update();
 
-    // Customer Segments
-    customerSegmentsChart.data.labels = data.customer_segments.map(item => item.segment || 'Unspecified');
+    // Customer Distribution by Country
+    customerSegmentsChart.data.labels = data.customer_segments.map(item => item.country || 'Unspecified');
     customerSegmentsChart.data.datasets[0].data = data.customer_segments.map(item => item.count);
     customerSegmentsChart.update();
 
@@ -72,7 +72,7 @@ function initializeCharts(initial) {
         data: {
             labels: initial.sales_trend.map(item => item.date),
             datasets: [{
-                label: 'Daily Sales',
+                label: 'Total Sales',
                 data: initial.sales_trend.map(item => item.total_sales),
                 borderColor: chartColors.primary,
                 backgroundColor: chartColors.primary.replace('0.7', '0.1'),
@@ -87,7 +87,7 @@ function initializeCharts(initial) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `Sales: $${context.raw.toFixed(2)}`;
+                            return `$${context.raw.toFixed(2)}`;
                         }
                     }
                 }
@@ -97,13 +97,14 @@ function initializeCharts(initial) {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            return '$' + value.toFixed(2);
                         }
                     }
                 }
             }
         }
     });
+
     // Top Products
     topProductsChart = new Chart(document.getElementById('topProductsChart'), {
         type: 'bar',
@@ -113,38 +114,41 @@ function initializeCharts(initial) {
                 label: 'Revenue',
                 data: initial.top_products.map(item => item.revenue),
                 backgroundColor: chartColors.success,
-                borderColor: chartColors.success.replace('0.7', '1'),
+                borderColor: chartColors.success,
                 borderWidth: 1
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y',
             plugins: {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `Revenue: $${context.raw.toFixed(2)}`;
+                            return `$${context.raw.toFixed(2)}`;
                         }
                     }
+                },
+                legend: {
+                    display: false
                 }
             },
             scales: {
-                x: {
+                y: {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            return '$' + value.toFixed(2);
                         }
                     }
                 }
             }
         }
     });
+
     // Category Distribution
     categoryDistributionChart = new Chart(document.getElementById('categoryDistributionChart'), {
-        type: 'doughnut',
+        type: 'pie',
         data: {
             labels: initial.category_distribution.map(item => item.category),
             datasets: [{
@@ -164,7 +168,7 @@ function initializeCharts(initial) {
                             const value = context.raw;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             const percentage = ((value / total) * 100).toFixed(1);
-                            return `${context.label}: $${value.toFixed(2)} (${percentage}%)`;
+                            return `$${value.toFixed(2)} (${percentage}%)`;
                         }
                     }
                 },
@@ -178,11 +182,12 @@ function initializeCharts(initial) {
             }
         }
     });
-    // Customer Segments
+
+    // Customer Distribution by Country
     customerSegmentsChart = new Chart(document.getElementById('customerSegmentsChart'), {
         type: 'pie',
         data: {
-            labels: initial.customer_segments.map(item => item.segment || 'Unspecified'),
+            labels: initial.customer_segments.map(item => item.country || 'Unspecified'),
             datasets: [{
                 data: initial.customer_segments.map(item => item.count),
                 backgroundColor: Object.values(chartColors),
@@ -200,7 +205,7 @@ function initializeCharts(initial) {
                             const value = context.raw;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             const percentage = ((value / total) * 100).toFixed(1);
-                            return `${context.label}: ${value} customers (${percentage}%)`;
+                            return `${value} customers (${percentage}%)`;
                         }
                     }
                 },
@@ -214,6 +219,7 @@ function initializeCharts(initial) {
             }
         }
     });
+
     // Revenue by Country
     revenueByCountryChart = new Chart(document.getElementById('revenueByCountryChart'), {
         type: 'bar',
@@ -223,7 +229,7 @@ function initializeCharts(initial) {
                 label: 'Revenue',
                 data: initial.revenue_by_country.map(item => item.revenue),
                 backgroundColor: chartColors.info,
-                borderColor: chartColors.info.replace('0.7', '1'),
+                borderColor: chartColors.info,
                 borderWidth: 1
             }]
         },
@@ -234,9 +240,12 @@ function initializeCharts(initial) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `Revenue: $${context.raw.toFixed(2)}`;
+                            return `$${context.raw.toFixed(2)}`;
                         }
                     }
+                },
+                legend: {
+                    display: false
                 }
             },
             scales: {
@@ -244,7 +253,7 @@ function initializeCharts(initial) {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return '$' + value.toFixed(0);
+                            return '$' + value.toFixed(2);
                         }
                     }
                 }
