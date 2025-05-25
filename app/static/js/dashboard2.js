@@ -1,93 +1,135 @@
-// Function to update operational metrics
-function updateOperationalMetrics() {
-    fetch('/api/operational-metrics')
-        .then(response => response.json())
-        .then(data => {
-            // Update daily metrics
-            document.querySelector('.card.bg-primary .display-4').textContent = data.order_count;
-            document.querySelector('.card.bg-success .display-4').textContent = '$' + data.total_sales.toFixed(2);
-            document.querySelector('.card.bg-info .display-4').textContent = '$' + data.average_order_value.toFixed(2);
-            
-            // Update order status chart
-            orderStatusChart.data.datasets[0].data = data.status_distribution.map(item => item.count);
-            orderStatusChart.update();
-            
-            // Update recent orders table
-            updateRecentOrdersTable(data.recent_orders);
-            
-            // Update inventory status
-            updateInventoryStatus(data.inventory_status);
-        })
-        .catch(error => console.error('Error updating operational metrics:', error));
+// --- Operational Dashboard JS ---
+
+let orderStatusChart;
+
+function formatDateForBackend(dateStr) {
+    if (!dateStr) return '';
+    if (dateStr.includes('-')) return dateStr; // already in correct format
+    const [day, month, year] = dateStr.split('.');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
-// Function to update recent orders table
-function updateRecentOrdersTable(orders) {
-    const tbody = document.querySelector('.table-responsive tbody');
-    tbody.innerHTML = orders.map(order => `
+function getFilters() {
+    const dateMode = document.querySelector('input[name="dateMode"]:checked').value;
+    const customDate = document.getElementById('customDate').value;
+    const country = document.getElementById('countryFilter').value;
+    return {
+        date_mode: dateMode,
+        custom_date: formatDateForBackend(customDate),
+        country: country
+    };
+}
+
+function fetchDashboardData(filters) {
+    const params = new URLSearchParams(filters).toString();
+    return fetch(`/api/dashboard2/data?${params}`)
+        .then(res => res.json());
+}
+
+function updateKPI(daily_metrics, current_date) {
+    document.getElementById('orderCount').textContent = daily_metrics.order_count;
+    document.getElementById('totalSales').textContent = `$${daily_metrics.total_sales.toFixed(2)}`;
+    document.getElementById('avgOrderValue').textContent = `$${daily_metrics.average_order_value.toFixed(2)}`;
+    document.querySelector('.card-text.text-white-50').textContent = `As of ${current_date}`;
+}
+
+function updateOrderStatusChart(status_distribution) {
+    orderStatusChart.data.labels = status_distribution.map(item => item.status);
+    orderStatusChart.data.datasets[0].data = status_distribution.map(item => item.count);
+    orderStatusChart.update();
+}
+
+function updateRecentInvoicesTable(recent_orders) {
+    const tbody = document.getElementById('recentInvoicesTableBody');
+    tbody.innerHTML = recent_orders.map(order => `
         <tr>
-            <td>${order.order_id}</td>
-            <td>${order.first_name} ${order.last_name}</td>
-            <td>${new Date(order.order_date).toLocaleString()}</td>
-            <td>
-                <span class="badge bg-${getStatusBadgeClass(order.status)}">
-                    ${order.status}
-                </span>
-            </td>
+            <td>${order.invoice_no}</td>
+            <td>${order.customer_name}</td>
+            <td>${order.country}</td>
+            <td>${order.invoice_date}</td>
             <td>$${order.total_amount.toFixed(2)}</td>
         </tr>
     `).join('');
 }
 
-// Function to update inventory status table
-function updateInventoryStatus(inventory) {
-    const tbody = document.querySelector('.table-responsive:last-child tbody');
-    tbody.innerHTML = inventory.map(item => `
-        <tr>
-            <td>${item.name}</td>
-            <td>${item.category}</td>
-            <td>${item.stock_quantity}</td>
-            <td>
-                <span class="badge bg-${getInventoryBadgeClass(item.stock_quantity)}">
-                    ${getInventoryStatus(item.stock_quantity)}
-                </span>
-            </td>
-        </tr>
-    `).join('');
+function updateDashboard(data) {
+    updateKPI(data.daily_metrics, data.current_date);
+    updateOrderStatusChart(data.status_distribution);
+    updateRecentInvoicesTable(data.recent_orders);
 }
 
-// Helper function to get status badge class
-function getStatusBadgeClass(status) {
-    switch (status.toLowerCase()) {
-        case 'completed':
-            return 'success';
-        case 'pending':
-            return 'warning';
-        case 'cancelled':
-            return 'danger';
-        default:
-            return 'secondary';
-    }
+function initializeOrderStatusChart(initial) {
+    orderStatusChart = new Chart(document.getElementById('orderStatusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: initial.status_distribution.map(item => item.status),
+            datasets: [{
+                data: initial.status_distribution.map(item => item.count),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)'
+                ],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${value} invoices (${percentage}%)`;
+                        }
+                    }
+                },
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 15,
+                        padding: 15
+                    }
+                }
+            }
+        }
+    });
 }
 
-// Helper function to get inventory badge class
-function getInventoryBadgeClass(quantity) {
-    return quantity < 5 ? 'danger' : 'warning';
-}
-
-// Helper function to get inventory status text
-function getInventoryStatus(quantity) {
-    return quantity < 5 ? 'Critical' : 'Low';
-}
-
-// Export chart object for global access
-window.orderStatusChart = null;
-
-// Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up auto-refresh every 5 minutes
-    setInterval(updateOperationalMetrics, 300000);
-    
-    // Initial update
-    updateOperationalMetrics();
+    // Initialize chart and table with initial data
+    initializeOrderStatusChart(window.dashboard2Initial);
+    updateKPI(window.dashboard2Initial.daily_metrics, window.dashboard2Initial.current_date);
+    updateRecentInvoicesTable(window.dashboard2Initial.recent_orders);
+
+    // Filter event listeners
+    document.getElementById('countryFilter').addEventListener('change', function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateDashboard);
+    });
+    document.getElementById('customDate').addEventListener('change', function() {
+        document.getElementById('customRadio').checked = true;
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateDashboard);
+    });
+    document.getElementById('todayRadio').addEventListener('change', function() {
+        document.getElementById('customDate').disabled = true;
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateDashboard);
+    });
+    document.getElementById('customRadio').addEventListener('change', function() {
+        document.getElementById('customDate').disabled = false;
+    });
+
+    // Auto-refresh every 5 minutes
+    setInterval(function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateDashboard);
+    }, 300000);
 }); 

@@ -6,17 +6,56 @@
 <div class="row mb-4">
     <div class="col-12">
         <h2>Operational Dashboard</h2>
-        <p class="text-muted">Real-time Operations & KPIs</p>
+        <p class="text-muted">Daily Operations Overview</p>
     </div>
 </div>
 
-<!-- Daily Metrics Cards -->
+{% if no_data %}
+<div class="alert alert-info" role="alert">
+    <h4 class="alert-heading">No Data Available</h4>
+    <p>There are no invoices in the database for the selected date. Please try a different date or check back later.</p>
+</div>
+{% else %}
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Date Filter</h5>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="dateMode" id="todayRadio" value="today" {% if date_mode == 'today' %}checked{% endif %}>
+                    <label class="form-check-label" for="todayRadio">Today</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="dateMode" id="customRadio" value="custom" {% if date_mode == 'custom' %}checked{% endif %}>
+                    <label class="form-check-label" for="customRadio">Custom Date</label>
+                </div>
+                <input type="date" class="form-control mt-2" id="customDate" value="{{ current_date }}" {% if date_mode == 'today' %}disabled{% endif %}>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Country Filter</h5>
+                <select class="form-select" id="countryFilter">
+                    <option value="">All Countries</option>
+                    {% for country in countries %}
+                    <option value="{{ country }}" {% if country == selected_country %}selected{% endif %}>{{ country }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mb-4">
     <div class="col-md-4">
         <div class="card bg-primary text-white">
             <div class="card-body">
                 <h5 class="card-title">Today's Invoices</h5>
-                <h2 class="display-4">{{ daily_metrics.order_count }}</h2>
+                <h2 class="display-4" id="orderCount">{{ daily_metrics.order_count }}</h2>
+                <p class="card-text text-white-50">As of {{ current_date }}</p>
             </div>
         </div>
     </div>
@@ -24,27 +63,33 @@
         <div class="card bg-success text-white">
             <div class="card-body">
                 <h5 class="card-title">Today's Sales</h5>
-                <h2 class="display-4">${{ "%.2f"|format(daily_metrics.total_sales) }}</h2>
+                <h2 class="display-4" id="totalSales">${{ '%.2f'|format(daily_metrics.total_sales) }}</h2>
+                <p class="card-text text-white-50">Total revenue for today</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4">  
+    <div class="col-md-4">
         <div class="card bg-info text-white">
             <div class="card-body">
                 <h5 class="card-title">Average Invoice Value</h5>
-                <h2 class="display-4">${{ "%.2f"|format(daily_metrics.average_order_value) }}</h2>
+                <h2 class="display-4" id="avgOrderValue">${{ '%.2f'|format(daily_metrics.average_order_value) }}</h2>
+                <p class="card-text text-white-50">Per invoice average</p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Order Status Distribution -->
+<!-- Charts and Table -->
 <div class="row mb-4">
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Invoice Status Distribution</h5>
+                <h5 class="card-title">Invoice Distribution by Country</h5>
+                {% if status_distribution %}
                 <canvas id="orderStatusChart"></canvas>
+                {% else %}
+                <div class="alert alert-info">No invoice distribution data available for the selected date.</div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -52,142 +97,54 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Recent Invoices</h5>
+                {% if recent_orders %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
                             <tr>
                                 <th>Invoice No</th>
                                 <th>Customer</th>
+                                <th>Country</th>
                                 <th>Date</th>
                                 <th>Amount</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="recentInvoicesTableBody">
                             {% for invoice in recent_orders %}
                             <tr>
                                 <td>{{ invoice.invoice_no }}</td>
                                 <td>{{ invoice.customer_name }}</td>
-                                <td>{{ invoice.invoice_date.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>${{ "%.2f"|format(invoice.total_amount) }}</td>
+                                <td>{{ invoice.country }}</td>
+                                <td>{{ invoice.invoice_date }}</td>
+                                <td>${{ '%.2f'|format(invoice.total_amount) }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <div class="alert alert-info">No recent invoices available for the selected date.</div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
-
-<!-- Inventory Status -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Low Stock Alert</h5>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>Category</th>
-                                <th>Current Stock</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in inventory_status %}
-                            <tr>
-                                <td>{{ item.name }}</td>
-                                <td>{{ item.category }}</td>
-                                <td>{{ item.stock_quantity }}</td>
-                                <td>
-                                    <span class="badge bg-{{ 'danger' if item.stock_quantity < 5 else 'warning' }}">
-                                        {{ 'Critical' if item.stock_quantity < 5 else 'Low' }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard2.js') }}"></script>
-<script>
-    // Get initial data from data attributes
-    const dashboardElement = document.getElementById('dashboard-data');
-    const initialData = {
-        statusDistribution: JSON.parse(dashboardElement.dataset.statusDistribution),
-        dailyMetrics: {
-            orderCount: parseInt(dashboardElement.dataset.orderCount) || 0,
-            totalSales: parseFloat(dashboardElement.dataset.totalSales) || 0,
-            averageOrderValue: parseFloat(dashboardElement.dataset.averageOrderValue) || 0
-        }
-    };
-
-    // Initialize Order Status Chart
-    window.orderStatusChart = new Chart(document.getElementById('orderStatusChart'), {
-        type: 'doughnut',
-        data: {
-            labels: initialData.statusDistribution.map(item => item.status),
-            datasets: [{
-                data: initialData.statusDistribution.map(item => item.count),
-                backgroundColor: [
-                    'rgba(40, 167, 69, 0.5)'  // completed
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Invoice Status Distribution'
-                },
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
-
-    // Initialize metrics display
-    document.querySelector('.card.bg-primary .display-4').textContent = initialData.dailyMetrics.orderCount;
-    document.querySelector('.card.bg-success .display-4').textContent = '$' + initialData.dailyMetrics.totalSales.toFixed(2);
-    document.querySelector('.card.bg-info .display-4').textContent = '$' + initialData.dailyMetrics.averageOrderValue.toFixed(2);
-
-    // Auto-refresh dashboard data every 5 minutes
-    setInterval(function() {
-        fetch('/api/operational-metrics')
-            .then(response => response.json())
-            .then(data => {
-                // Update metrics
-                document.querySelector('.card.bg-primary .display-4').textContent = data.order_count;
-                document.querySelector('.card.bg-success .display-4').textContent = '$' + data.total_sales.toFixed(2);
-                document.querySelector('.card.bg-info .display-4').textContent = '$' + data.average_order_value.toFixed(2);
-                
-                // Update order status chart
-                if (window.orderStatusChart) {
-                    window.orderStatusChart.data.datasets[0].data = data.status_distribution.map(item => item.count);
-                    window.orderStatusChart.update();
-                }
-            })
-            .catch(error => console.error('Error updating operational metrics:', error));
-    }, 300000); // 5 minutes
+{% autoescape false %}
+<script type="text/javascript">
+window.dashboard2Initial = {
+    daily_metrics: {{ daily_metrics|tojson }},
+    status_distribution: {{ status_distribution|tojson }},
+    recent_orders: {{ recent_orders|tojson }},
+    countries: {{ countries|tojson }},
+    selected_country: {{ selected_country|tojson }},
+    current_date: {{ current_date|tojson }},
+    date_mode: {{ date_mode|tojson }}
+};
 </script>
-
-<!-- Hidden element to store initial data -->
-<div id="dashboard-data" 
-     data-status-distribution='{{ status_distribution|tojson|safe }}'
-     data-order-count="{{ daily_metrics.order_count|default(0) }}"
-     data-total-sales="{{ daily_metrics.total_sales|default(0)|float }}"
-     data-average-order-value="{{ daily_metrics.average_order_value|default(0)|float }}"
-     style="display: none;">
-</div>
+{% endautoescape %}
 {% endblock %} 

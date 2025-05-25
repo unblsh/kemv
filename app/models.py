@@ -1,12 +1,13 @@
 from datetime import datetime
-from app import db
+from app.extensions import db
 
 class Customer(db.Model):
     __tablename__ = 'Customer'
     
     customer_id = db.Column('CustomerID', db.Integer, primary_key=True)
     name = db.Column('Name', db.String(100))
-    country_code = db.Column('CountryCode', db.String(10))
+    country = db.Column('Country', db.String(100))
+    segment = db.Column('Segment', db.String(50))
     
     # Relationships
     invoices = db.relationship('Invoice', backref='customer', lazy=True)
@@ -15,19 +16,19 @@ class Product(db.Model):
     __tablename__ = 'Product'
     
     product_id = db.Column('ProductID', db.Integer, primary_key=True)
-    name = db.Column('ProductName', db.String(100), nullable=False)
-    price = db.Column('UnitPrice', db.Float, nullable=False)
+    product_name = db.Column('ProductName', db.String(100), nullable=False)
     category_id = db.Column('CategoryID', db.Integer, db.ForeignKey('Category.CategoryID'))
     
     # Relationships
-    invoice_items = db.relationship('InvoiceItem', backref='product', lazy=True)
+    invoice_lines = db.relationship('InvoiceLine', backref='product', lazy=True)
     category = db.relationship('Category', backref='products', lazy=True)
+    stock = db.relationship('Stock', backref='product', lazy=True, uselist=False)
 
 class Category(db.Model):
     __tablename__ = 'Category'
     
     category_id = db.Column('CategoryID', db.Integer, primary_key=True)
-    name = db.Column('CategoryName', db.String(255), nullable=False)
+    category_name = db.Column('CategoryName', db.String(255), nullable=False)
 
 class Invoice(db.Model):
     __tablename__ = 'Invoice'
@@ -37,24 +38,24 @@ class Invoice(db.Model):
     customer_id = db.Column('CustomerID', db.Integer, db.ForeignKey('Customer.CustomerID'))
     
     # Relationships
-    items = db.relationship('InvoiceItem', backref='invoice', lazy=True)
+    invoice_lines = db.relationship('InvoiceLine', backref='invoice', lazy=True)
     
     @property
     def total_amount(self):
-        return sum(item.quantity * item.unit_price for item in self.items)
+        return sum(line.line_total for line in self.invoice_lines)
 
-class InvoiceItem(db.Model):
-    __tablename__ = 'Invoice_Item'
+class InvoiceLine(db.Model):
+    __tablename__ = 'InvoiceLine'
     
-    invoice_item_id = db.Column('InvoiceItemID', db.Integer, primary_key=True, autoincrement=True)
+    invoice_line_id = db.Column('InvoiceLineID', db.Integer, primary_key=True)
     invoice_no = db.Column('InvoiceNo', db.String(20), db.ForeignKey('Invoice.InvoiceNo'))
     product_id = db.Column('ProductID', db.Integer, db.ForeignKey('Product.ProductID'))
     quantity = db.Column('Quantity', db.Integer, nullable=False)
+    unit_price = db.Column('UnitPrice', db.Float, nullable=False)
+    line_total = db.Column('LineTotal', db.Float, nullable=False)
+
+class Stock(db.Model):
+    __tablename__ = 'Stock'
     
-    @property
-    def unit_price(self):
-        return self.product.price if self.product else 0
-    
-    @property
-    def subtotal(self):
-        return self.quantity * self.unit_price 
+    product_id = db.Column('ProductID', db.Integer, db.ForeignKey('Product.ProductID'), primary_key=True)
+    quantity_in_stock = db.Column('QuantityInStock', db.Integer, nullable=False, default=0) 
