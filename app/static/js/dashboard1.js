@@ -24,7 +24,8 @@ function getFilters() {
         start_date: formatDateForBackend(document.getElementById('startDate').value),
         end_date: formatDateForBackend(document.getElementById('endDate').value),
         category: document.getElementById('categoryFilter').value,
-        search: document.getElementById('searchInput').value.trim()
+        search: document.getElementById('searchInput').value.trim(),
+        country: document.getElementById('countryFilter').value
     };
 }
 
@@ -305,19 +306,39 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts(window.dashboard1Initial);
 
     // Filter event listeners
-    document.getElementById('applyFilters').addEventListener('click', function() {
-        const filters = getFilters();
-        fetchDashboardData(filters).then(updateCharts);
-    });
     document.getElementById('categoryFilter').addEventListener('change', function() {
         const filters = getFilters();
-        fetchDashboardData(filters).then(updateCharts);
+        fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying category filter:', error));
     });
+
+    // Listen for 'Enter' key on search input
     document.getElementById('searchInput').addEventListener('keyup', function(e) {
         if (e.key === 'Enter' || e.keyCode === 13) {
             const filters = getFilters();
-            fetchDashboardData(filters).then(updateCharts);
+            fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying search filter:', error));
         }
+    });
+
+    // Listen for click on the Search button
+    document.getElementById('searchButton').addEventListener('click', function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying search button:', error));
+    });
+
+    // Add event listeners for date and country filters
+    document.getElementById('startDate').addEventListener('change', function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying start date filter:', error));
+    });
+
+    document.getElementById('endDate').addEventListener('change', function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying end date filter:', error));
+    });
+
+    document.getElementById('countryFilter').addEventListener('change', function() {
+        const filters = getFilters();
+        fetchDashboardData(filters).then(updateCharts).catch(error => console.error('Error applying country filter:', error));
     });
 
     // Auto-refresh every 5 minutes

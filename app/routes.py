@@ -186,6 +186,8 @@ def analytical_dashboard():
                     .join(Customer, Invoice.customer_id == Customer.customer_id)
                     .join(Country, Customer.country_id == Country.country_id)
                     .filter(Invoice.invoice_date.between(start_date_obj, end_date_obj))
+                    .filter(Category.category_name == category if category else True)
+                    .filter(Country.country_name == request.args.get('country', '') if request.args.get('country', '') else True)
                     .group_by(Category.stock_code, Category.category_name)
                     .all()
                 )
@@ -215,6 +217,7 @@ def analytical_dashboard():
                     .join(Invoice, Customer.customer_id == Invoice.customer_id)
                     .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
                     .filter(Invoice.invoice_date.between(start_date_obj, end_date_obj))
+                    .filter(Country.country_name == request.args.get('country', '') if request.args.get('country', '') else True)
                     .group_by(Country.country_id, Country.country_name)
                     .all()
                 )
@@ -241,6 +244,7 @@ def analytical_dashboard():
                     .join(Invoice, Customer.customer_id == Invoice.customer_id)
                     .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
                     .filter(Invoice.invoice_date.between(start_date_obj, end_date_obj))
+                    .filter(Country.country_name == request.args.get('country', '') if request.args.get('country', '') else True)
                     .group_by(Country.country_id, Country.country_name)
                     .order_by(desc('revenue'))
                     .all()
@@ -653,156 +657,204 @@ def api_dashboard1_data():
             'message': 'Please import valid invoice data.'
         }), 400
 
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    category = request.args.get('category', '')
-    search = request.args.get('search', '')
-    country = request.args.get('country', '')  # Add country filter
+    try:
+        # Parse and validate date parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        category = request.args.get('category', '')
+        search = request.args.get('search', '')
+        country = request.args.get('country', '')  # This is country_name
 
-    # Base query for common filters
-    base_query = db.session.query(Invoice).join(Customer)
-    base_query = base_query.filter(Invoice.invoice_date.between(start_date, end_date))
-    if category:
-        base_query = base_query.join(Product).join(Category).filter(Category.category_name == category)
-    if search:
-        base_query = base_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
-    if country:
-        base_query = base_query.filter(Customer.country_id == country)
+        print(f"Debug - Received parameters: start_date={start_date}, end_date={end_date}, category={category}, country={country}")
 
-    # Sales Trend with improved filtering
-    sales_trend_query = (
-        db.session.query(
-            func.date(Invoice.invoice_date).label('date'),
-            func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_sales')
+        # Convert string dates to datetime objects
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
+        except ValueError as e:
+            print(f"Debug - Date parsing error: {str(e)}")
+            logger.error(f'Invalid date format: {str(e)}')
+            return jsonify({'error': 'Invalid date format'}), 400
+
+        # If no dates provided, use last 30 days
+        if not start_date or not end_date:
+            end_date = latest_date.date()
+            start_date = end_date - timedelta(days=30)
+            print(f"Debug - Using default date range: {start_date} to {end_date}")
+
+        # Sales Trend with improved filtering
+        sales_trend_query = (
+            db.session.query(
+                func.date(Invoice.invoice_date).label('date'),
+                func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_sales')
+            )
+            .select_from(Invoice)
+            .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
+            # Temporarily remove other joins and filters for debugging
+            # .join(Customer, Invoice.customer_id == Customer.customer_id)
+            # .join(Country, Customer.country_id == Country.country_id)
+            # .join(Product, InvoiceLine.product_id == Product.product_id)
+            # .join(Category, Product.stock_code == Category.stock_code)
+            .filter(Invoice.invoice_date.between(start_date, end_date))
         )
-        .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
-        .join(Product, InvoiceLine.product_id == Product.product_id)
-        .join(Category, Product.stock_code == Category.stock_code)
-        .join(Customer, Invoice.customer_id == Customer.customer_id)
-        .filter(Invoice.invoice_date.between(start_date, end_date))
-    )
-    
-    if category:
-        sales_trend_query = sales_trend_query.filter(Category.category_name == category)
-    if search:
-        sales_trend_query = sales_trend_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
-    if country:
-        sales_trend_query = sales_trend_query.filter(Customer.country_id == country)
-    
-    sales_trend = sales_trend_query.group_by(func.date(Invoice.invoice_date)).order_by('date').all()
-    sales_trend = [dict(date=str(row.date), total_sales=float(row.total_sales)) for row in sales_trend]
-
-    # Top Selling Products with improved filtering
-    top_products_query = (
-        db.session.query(
-            Product.description.label('product_name'),
-            func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('revenue'),
-            func.count(Invoice.invoice_no).label('order_count')
+        
+        # Temporarily remove filters for debugging
+        # if category:
+        #     sales_trend_query = sales_trend_query.filter(Category.category_name == category)
+        # if search:
+        #     sales_trend_query = sales_trend_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
+        # if country:
+        #     sales_trend_query = sales_trend_query.filter(Country.country_name == country)
+        
+        # Group by date and order
+        sales_trend = (
+            sales_trend_query
+            .group_by(func.date(Invoice.invoice_date))
+            .order_by(func.date(Invoice.invoice_date))
+            .all()
         )
-        .join(InvoiceLine, Product.product_id == InvoiceLine.product_id)
-        .join(Invoice, InvoiceLine.invoice_no == Invoice.invoice_no)
-        .join(Category, Product.stock_code == Category.stock_code)
-        .join(Customer, Invoice.customer_id == Customer.customer_id)
-        .filter(Invoice.invoice_date.between(start_date, end_date))
-    )
-    
-    if category:
-        top_products_query = top_products_query.filter(Category.category_name == category)
-    if search:
-        top_products_query = top_products_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
-    if country:
-        top_products_query = top_products_query.filter(Customer.country_id == country)
-    
-    top_products = top_products_query.group_by(Product.product_id).order_by(desc('revenue')).limit(10).all()
-    top_products = [dict(product_name=row.product_name, revenue=float(row.revenue), order_count=row.order_count) for row in top_products]
+        
+        print(f"Debug - Raw query results: {sales_trend}")
 
-    # Sales by Category with improved filtering
-    category_distribution_query = (
-        db.session.query(
-            Category.category_name,
-            func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_sales'),
-            func.count(Invoice.invoice_no).label('order_count')
-        )
-        .join(Product, Category.stock_code == Product.stock_code)
-        .join(InvoiceLine, Product.product_id == InvoiceLine.product_id)
-        .join(Invoice, InvoiceLine.invoice_no == Invoice.invoice_no)
-        .join(Customer, Invoice.customer_id == Customer.customer_id)
-        .filter(Invoice.invoice_date.between(start_date, end_date))
-    )
-    
-    if category:
-        category_distribution_query = category_distribution_query.filter(Category.category_name == category)
-    if search:
-        category_distribution_query = category_distribution_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
-    if country:
-        category_distribution_query = category_distribution_query.filter(Customer.country_id == country)
-    
-    category_distribution = category_distribution_query.group_by(Category.stock_code).all()
-    category_distribution = [
-        dict(category=row.category_name, sales=float(row.total_sales), order_count=row.order_count)
-        for row in category_distribution
-    ]
+        # Format the results
+        sales_trend = [
+            {
+                'date': row.date.strftime('%Y-%m-%d') if row.date else None,
+                'total_sales': float(row.total_sales) if row.total_sales is not None else 0.0
+            } 
+            for row in sales_trend
+        ]
 
-    # Customer Segments with improved filtering
-    customer_segments_query = (
-        db.session.query(
-            Country.country_name.label('country'),
-            func.count(Customer.customer_id).label('customer_count'),
-            func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_revenue')
-        )
-        .join(Invoice, Customer.customer_id == Invoice.customer_id)
-        .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
-        .filter(Invoice.invoice_date.between(start_date, end_date))
-    )
-    
-    if search:
-        customer_segments_query = customer_segments_query.filter(Product.description.ilike(f'%{search}%'))
-    if country:
-        customer_segments_query = customer_segments_query.filter(Customer.country_id == country)
-    
-    customer_segments = customer_segments_query.group_by(Country.country_name).all()
-    customer_segments = [
-        dict(country=row.country, count=int(row.customer_count), revenue=float(row.total_revenue))
-        for row in customer_segments
-    ]
+        print(f"Debug - Formatted sales trend data: {sales_trend}")
+        print(f"Debug - Number of records: {len(sales_trend)}")
+        if sales_trend:
+            print(f"Debug - Date range: {sales_trend[0]['date']} to {sales_trend[-1]['date']}")
+            print(f"Debug - Sales range: {min(r['total_sales'] for r in sales_trend)} to {max(r['total_sales'] for r in sales_trend)}")
 
-    # Revenue by Country with improved filtering
-    revenue_by_country_query = (
-        db.session.query(
-            Country.country_name.label('country'),
-            func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('revenue'),
-            func.count(Invoice.invoice_no).label('order_count'),
-            func.count(Customer.customer_id.distinct()).label('customer_count')
-        )
-        .join(Invoice, Customer.customer_id == Invoice.customer_id)
-        .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
-        .filter(Invoice.invoice_date.between(start_date, end_date))
-        .filter(Customer.country_id.isnot(None))
-    )
-    
-    if search:
-        revenue_by_country_query = revenue_by_country_query.filter(Product.description.ilike(f'%{search}%'))
-    if country:
-        revenue_by_country_query = revenue_by_country_query.filter(Customer.country_id == country)
-    
-    revenue_by_country = revenue_by_country_query.group_by(Country.country_name).order_by(desc('revenue')).all()
-    revenue_by_country = [
-        dict(
-            country=row.country,
-            revenue=float(row.revenue),
-            order_count=row.order_count,
-            customer_count=row.customer_count
-        )
-        for row in revenue_by_country
-    ]
+        # Let's also verify the data exists in the database
+        total_invoices = db.session.query(func.count(Invoice.invoice_no)).scalar()
+        total_invoice_lines = db.session.query(func.count(InvoiceLine.invoice_line_id)).scalar()
+        print(f"Debug - Database stats: {total_invoices} invoices, {total_invoice_lines} invoice lines")
 
-    return jsonify({
-        'sales_trend': sales_trend,
-        'top_products': top_products,
-        'category_distribution': category_distribution,
-        'customer_segments': customer_segments,
-        'revenue_by_country': revenue_by_country
-    })
+        # Top Selling Products with improved filtering
+        top_products_query = (
+            db.session.query(
+                Product.description.label('product_name'),
+                func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('revenue'),
+                func.count(Invoice.invoice_no.distinct()).label('order_count')
+            )
+            .select_from(Product)
+            .join(InvoiceLine, Product.product_id == InvoiceLine.product_id)
+            .join(Invoice, InvoiceLine.invoice_no == Invoice.invoice_no)
+            .join(Category, Product.stock_code == Category.stock_code)
+            .join(Customer, Invoice.customer_id == Customer.customer_id)
+            .filter(Invoice.invoice_date.between(start_date, end_date))
+        )
+        
+        if category:
+            top_products_query = top_products_query.filter(Category.category_name == category)
+        if search:
+            top_products_query = top_products_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
+        if country:
+            top_products_query = top_products_query.filter(Country.country_name == country)
+        
+        top_products = top_products_query.group_by(Product.product_id, Product.description).order_by(desc('revenue')).limit(10).all()
+        top_products = [dict(product_name=row.product_name, revenue=float(row.revenue), order_count=row.order_count) for row in top_products]
+
+        # Sales by Category with improved filtering
+        category_distribution_query = (
+            db.session.query(
+                Category.category_name,
+                func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_sales'),
+                func.count(Invoice.invoice_no.distinct()).label('order_count')
+            )
+            .select_from(Category)
+            .join(Product, Category.stock_code == Product.stock_code)
+            .join(InvoiceLine, Product.product_id == InvoiceLine.product_id)
+            .join(Invoice, InvoiceLine.invoice_no == Invoice.invoice_no)
+            .join(Customer, Invoice.customer_id == Customer.customer_id)
+            .join(Country, Customer.country_id == Country.country_id)
+            .filter(Invoice.invoice_date.between(start_date, end_date))
+        )
+        
+        if category:
+            category_distribution_query = category_distribution_query.filter(Category.category_name == category)
+        if search:
+            category_distribution_query = category_distribution_query.filter(or_(Product.description.ilike(f'%{search}%'), Product.stock_code.ilike(f'%{search}%')))
+        if country:
+            category_distribution_query = category_distribution_query.filter(Country.country_name == country)
+        
+        category_distribution = category_distribution_query.group_by(Category.stock_code, Category.category_name).all()
+        category_distribution = [
+            dict(category=row.category_name, sales=float(row.total_sales), order_count=row.order_count)
+            for row in category_distribution
+        ]
+
+        # Customer Segments with improved filtering
+        customer_segments_query = (
+            db.session.query(
+                Country.country_name.label('country'),
+                func.count(Customer.customer_id).label('customer_count'),
+                func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('total_revenue')
+            )
+            .join(Invoice, Customer.customer_id == Invoice.customer_id)
+            .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
+            .filter(Invoice.invoice_date.between(start_date, end_date))
+        )
+        
+        if search:
+            customer_segments_query = customer_segments_query.filter(Product.description.ilike(f'%{search}%'))
+        if country:
+            customer_segments_query = customer_segments_query.filter(Customer.country_id == country)
+        
+        customer_segments = customer_segments_query.group_by(Country.country_name).all()
+        customer_segments = [
+            dict(country=row.country, count=int(row.customer_count), revenue=float(row.total_revenue))
+            for row in customer_segments
+        ]
+
+        # Revenue by Country with improved filtering
+        revenue_by_country_query = (
+            db.session.query(
+                Country.country_name.label('country'),
+                func.sum(InvoiceLine.quantity * InvoiceLine.unit_price).label('revenue'),
+                func.count(Invoice.invoice_no).label('order_count'),
+                func.count(Customer.customer_id.distinct()).label('customer_count')
+            )
+            .join(Invoice, Customer.customer_id == Invoice.customer_id)
+            .join(InvoiceLine, Invoice.invoice_no == InvoiceLine.invoice_no)
+            .filter(Invoice.invoice_date.between(start_date, end_date))
+            .filter(Customer.country_id.isnot(None))
+        )
+        
+        if search:
+            revenue_by_country_query = revenue_by_country_query.filter(Product.description.ilike(f'%{search}%'))
+        if country:
+            revenue_by_country_query = revenue_by_country_query.filter(Customer.country_id == country)
+        
+        revenue_by_country = revenue_by_country_query.group_by(Country.country_name).order_by(desc('revenue')).all()
+        revenue_by_country = [
+            dict(
+                country=row.country,
+                revenue=float(row.revenue),
+                order_count=row.order_count,
+                customer_count=row.customer_count
+            )
+            for row in revenue_by_country
+        ]
+
+        return jsonify({
+            'sales_trend': sales_trend,
+            'top_products': top_products,
+            'category_distribution': category_distribution,
+            'customer_segments': customer_segments,
+            'revenue_by_country': revenue_by_country
+        })
+
+    except Exception as e:
+        print(f"Debug - Error in api_dashboard1_data: {str(e)}")
+        logger.error(f'Error in api_dashboard1_data: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 # --- Operational Dashboard API Endpoints ---
 @main.route('/api/dashboard2/data')
