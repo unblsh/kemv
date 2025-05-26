@@ -2,7 +2,7 @@ Online Retail Operational Dashboard - Capstone Project 3
 
 A comprehensive operational dashboard for online retail businesses, providing real-time insights into sales, inventory, and business performance metrics.
 
-## 🚀 Features
+## Features
 
 - **Interactive Dashboard**
   - Real-time sales metrics and KPIs
@@ -27,7 +27,7 @@ A comprehensive operational dashboard for online retail businesses, providing re
   - Visual alerts for low stock items
   - Stock status indicators (Low, Medium, In Stock)
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 - **Backend**
   - Python
@@ -41,13 +41,13 @@ A comprehensive operational dashboard for online retail businesses, providing re
   - Chart.js (Data Visualization)
   - Flatpickr (Date Picker)
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Python 3.8 or higher
 - pip (Python package manager)
 - Virtual environment (recommended)
 
-## 🚀 Installation
+## Installation
 
 1. Clone the repository:
    ```bash
@@ -86,7 +86,7 @@ A comprehensive operational dashboard for online retail businesses, providing re
 
 2. Access the dashboard at `http://localhost:5000/dashboard2`
 
-## 📊 Dashboard Features
+## Dashboard Features
 
 ### Date Filtering
 - Toggle between latest available date and custom date selection
@@ -109,17 +109,17 @@ A comprehensive operational dashboard for online retail businesses, providing re
   - In Stock (> 20 units)
 
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Bootstrap for the responsive design framework
 - Chart.js for data visualization
 - Flatpickr for the date picker component
 
-  ## 👥 Authors
+  ## Author
 
 - Azim Aydogdyyev
