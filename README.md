@@ -51,8 +51,8 @@ A comprehensive operational dashboard for online retail businesses, providing re
 
 1. Clone the repository:
    ```bash
-   git clone [repository-url]
-   cd [project-directory]
+   git clone https://github.com/unblsh/kemv_final
+   cd kemv_project
    ```
 
 2. Create and activate a virtual environment:
